@@ -1,6 +1,14 @@
-from pydantic import BaseModel
+from typing import Optional, Enum
+from langgraph.graph import MessagesState
 
+class VehicleType(str, Enum):
+    CAR = "car"
+    MOTORCYCLE = "motorcycle"
+    BICYCLE = "bicycle"
+    OTHER = "other"
 
-class AgentState(BaseModel):
-    image: str
-    messages: list[str]
+class AgentState(MessagesState):
+    b64_image: Optional[str] = None  # base64 encoded image
+    is_vehicle: bool = False
+    vehicle_type: Optional[VehicleType] = None
+    review: Optional[str] = None

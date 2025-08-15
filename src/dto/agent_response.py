@@ -1,6 +1,13 @@
 from pydantic import BaseModel
 
+class VerifyImageResponse(BaseModel):
+    is_vehicle: bool
 
-class AgentResponse(BaseModel):
-    response: str
-    image: str | None = None
+class VehicleTypeResponse(str, Enum):
+    CAR = "car"
+    MOTORCYCLE = "motorcycle"
+    BICYCLE = "bicycle"
+    OTHER = "other"
+
+class ReviewImageResponse(BaseModel):
+    review: str
