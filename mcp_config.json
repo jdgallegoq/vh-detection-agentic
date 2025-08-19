@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "vehicle-detection": {
+      "command": "python",
+      "args": ["src/mcp/vehicle_detection_server.py"],
+      "transport": "stdio",
+      "description": "Vehicle detection and analysis tools",
+      "tools": [
+        "verify_image",
+        "get_vehicle_type", 
+        "review_image",
+        "process_vehicle_image"
+      ]
+    }
+  },
+  "client": {
+    "name": "VehicleDetectionAgent",
+    "version": "1.0.0",
+    "description": "MCP-based vehicle detection agent"
+  }
+}

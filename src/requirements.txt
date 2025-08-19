@@ -2,3 +2,7 @@ pydantic==2.10.4
 pydantic-settings==2.7.0
 langchain-openai==0.3.8
 langgraph==0.2.73
+# MCP Dependencies
+mcp==1.0.0
+fastmcp==0.2.0
+jinja2==3.1.4
