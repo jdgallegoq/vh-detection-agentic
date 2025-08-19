@@ -1,8 +1,9 @@
+from core.settings import settings
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 
 class PromptManager:
-    def __init__(self, prompt_dir: str = "prompts"):
+    def __init__(self, prompt_dir: str = settings.prompt_dir):
         self._env = Environment(
             loader=FileSystemLoader(prompt_dir),
             undefined=StrictUndefined,

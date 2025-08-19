@@ -1,21 +1,22 @@
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, START, END
+import logging
 
-from dto.agent_state import AgentState, VehicleType
-from llm.prompt_manager import PromptManager
-from llm.client import LLMClient
 from dto.agent_state import AgentState
+from llm.prompt_manager import PromptManager
+from llm.client.llm_client import LLMClient
 from dto.agent_response import VerifyImageResponse, VehicleTypeResponse, ReviewImageResponse
 
 
 class Agent:
-    def __init__(self):
-        self.client = LLMClient()
-        self.prompt_manager = PromptManager()
+    def __init__(self, client: LLMClient, prompt_manager: PromptManager, logger: logging.Logger):
+        self.client = client
+        self.prompt_manager = prompt_manager
+        self.logger = logger
         self.graph = self._build_graph()
 
-    def _build_graph(self): -> StateGraph:
+    def _build_graph(self) -> StateGraph:
         graph = StateGraph(AgentState)
         graph.add_node("verify_image", self._verify_image)
         graph.add_node("get_vehicle_type", self._get_vehicle_type)
@@ -40,35 +41,47 @@ class Agent:
         )
         graph.add_edge("review_image", END)
         
-        return graph
+        return graph.compile()
 
     def _verify_image(self, state: AgentState):
         parser = PydanticOutputParser(pydantic_object=VerifyImageResponse)
-        response = self._ainvoke_client("verify_image", b64_image=state.b64_image)
+        response = self._invoke_client(
+            "verify_image",
+            b64_image=state.get("b64_image"),
+            format_instructions=parser.get_format_instructions()
+        )
         response = parser.parse(response["response"])
 
         return {"is_vehicle": response.is_vehicle}
 
     def _get_vehicle_type(self, state: AgentState):
         parser = PydanticOutputParser(pydantic_object=VehicleTypeResponse)
-        response = self._ainvoke_client("vehicle_type", b64_image=state.b64_image, is_vehicle=state.is_vehicle)
+        response = self._invoke_client(
+            "vehicle_type",
+            b64_image=state.get("b64_image"),
+            is_vehicle=state.get("is_vehicle"),
+            format_instructions=parser.get_format_instructions()
+        )
         response = parser.parse(response["response"])
 
-        return {"vehicle_type": response.model_dump()}
+        return {"vehicle_type": response.vehicle_type}
     
     def _review_image(self, state: AgentState):
         parser = PydanticOutputParser(pydantic_object=ReviewImageResponse)
-        response = self._ainvoke_client(
+        response = self._invoke_client(
             "review_image",
-            b64_image=state.b64_image,
-            vehicle_type=state.vehicle_type,
-            is_vehicle=state.is_vehicle
+            b64_image=state.get("b64_image"),
+            vehicle_type=state.get("vehicle_type"),
+            is_vehicle=state.get("is_vehicle"),
+            format_instructions=parser.get_format_instructions()
         )
         response = parser.parse(response["response"])
         return {"review": response.review}
 
-    async def _ainvoke_client(self, prompt_name: str, b64_image: str = None, **inputs: any):
-        prompt = self._get_prompt(prompt_name, **inputs)
+    def _invoke_client(self, prompt_name: str, b64_image: str = None, **inputs: any):
+        # Include b64_image in the inputs for the template
+        all_inputs = {**inputs, "b64_image": b64_image}
+        prompt = self._get_prompt(prompt_name, **all_inputs)
         message = HumanMessage(
             content=[
                 {
@@ -81,13 +94,29 @@ class Agent:
                 }
             ]
         )
-        response = await self.client.ainvoke([message])
-        return {"response": response.content[0]}
+        response = self.client.invoke([message])
+        return {"response": response.content}
 
 
     def _get_prompt(self, prompt_name: str, **inputs: any):
         prompt = self.prompt_manager.get_prompt(prompt_name)
         return prompt.render(**inputs)
 
-    def execute(self, message: str):
-        return self.graph.invoke({"messages": [HumanMessage(content=message)]})
+    async def aexecute(self, b64_image: str):
+        response = await self.graph.ainvoke(AgentState(b64_image=b64_image))
+        result = None
+        if response.get("review"):
+            result = ReviewImageResponse(review=response.get("review", ""))
+            return {"content": result.model_dump() if result else None}
+
+if __name__ == "__main__":
+    import asyncio
+    from utils.utils import preprocess_image
+
+    client = LLMClient()
+    prompt_manager = PromptManager()
+    logger = logging.getLogger("Agent")
+    agent = Agent(client, prompt_manager, logger)
+    b64_image = preprocess_image("./images/image1.jpeg")
+    result = asyncio.run(agent.aexecute(b64_image))
+    print(result)
