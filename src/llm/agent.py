@@ -25,7 +25,7 @@ class Agent:
         graph.add_edge(START, "verify_image")
         graph.add_conditional_edges(
             "verify_image",
-            lambda state: "get_vehicle_type" if state.get("is_vehicle") else END,
+            lambda state: "get_vehicle_type" if state.get("is_vehicle") else "END",
             {
                 "get_vehicle_type": "get_vehicle_type",
                 "END": END
@@ -33,7 +33,7 @@ class Agent:
         )
         graph.add_conditional_edges(
             "get_vehicle_type",
-            lambda state: "review_image" if state.get("vehicle_type") else END,
+            lambda state: "review_image" if state.get("vehicle_type") else "END",
             {
                 "review_image": "review_image",
                 "END": END
@@ -105,9 +105,11 @@ class Agent:
     async def aexecute(self, b64_image: str):
         response = await self.graph.ainvoke(AgentState(b64_image=b64_image))
         result = None
-        if response.get("review"):
+        if response.get("is_vehicle"):
             result = ReviewImageResponse(review=response.get("review", ""))
             return {"content": result.model_dump() if result else None}
+        else:
+            return {"content": ReviewImageResponse(review="Not a vehicle").model_dump()}
 
 if __name__ == "__main__":
     import asyncio
@@ -117,6 +119,6 @@ if __name__ == "__main__":
     prompt_manager = PromptManager()
     logger = logging.getLogger("Agent")
     agent = Agent(client, prompt_manager, logger)
-    b64_image = preprocess_image("./images/image1.jpeg")
+    b64_image = preprocess_image("./images/image16.jpeg")
     result = asyncio.run(agent.aexecute(b64_image))
     print(result)
