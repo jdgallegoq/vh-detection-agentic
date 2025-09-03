@@ -13,7 +13,7 @@ src_path = Path(__file__).parent
 sys.path.insert(0, str(src_path))
 
 from utils.utils import preprocess_image
-from mcp.mcp_agent import MCPVehicleAgent
+from vehicle_mcp.mcp_agent import MCPVehicleAgent
 from llm.agent import Agent
 from llm.client.llm_client import OpenAILLMClient, BedrockLLMClient
 from llm.prompt_manager import PromptManager

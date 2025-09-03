@@ -101,7 +101,7 @@ export PROMPT_DIR="./llm/prompts"
 
 ```python
 import asyncio
-from mcp.mcp_agent import MCPVehicleAgent
+from vehicle_mcp.mcp_agent import MCPVehicleAgent
 from utils.utils import preprocess_image
 
 async def analyze_vehicle():
@@ -404,7 +404,7 @@ python simple_mcp_demo.py
 # Test specific image with OpenAI
 python -c "
 import asyncio
-from mcp.mcp_agent import MCPVehicleAgent
+from vehicle_mcp.mcp_agent import MCPVehicleAgent
 from utils.utils import preprocess_image
 
 async def test():
@@ -419,7 +419,7 @@ asyncio.run(test())
 # Test specific image with Bedrock
 python -c "
 import asyncio
-from mcp.mcp_agent import MCPVehicleAgent
+from vehicle_mcp.mcp_agent import MCPVehicleAgent
 from utils.utils import preprocess_image
 
 async def test():
