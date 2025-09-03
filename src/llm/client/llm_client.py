@@ -46,6 +46,9 @@ class BedrockLLMClient:
             client=self.bedrock_cli,
         )
         return client
+    
+    def invoke(self, prompt: str):
+        return self.client.invoke(prompt)
 
 if __name__ == "__main__":
     client = OpenAILLMClient()

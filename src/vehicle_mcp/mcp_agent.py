@@ -22,9 +22,13 @@ class MCPVehicleAgent:
 
         current_dir = os.path.dirname(__file__)
         server_path = os.path.join(current_dir, "vehicle_detection_server.py")
+        # Set up environment to include src directory in Python path
+        src_dir = os.path.dirname(current_dir)
+        
+        # Simplified approach - just use python with the server path
         self.server_params = StdioServerParameters(
             command="python",
-            args=[server_path]
+            args=["-c", f"import sys; sys.path.insert(0, '{src_dir}'); exec(open('{server_path}').read())"]
         )
     
     async def __aenter__(self):
@@ -39,8 +43,11 @@ class MCPVehicleAgent:
     async def start_session(self):
         """Initialize MCP client session"""
         try:
-            self.client_session = await stdio_client(self.server_params)
-            await self.client_session.__aenter__()
+            context_manager = stdio_client(self.server_params)
+            read_stream, write_stream = await context_manager.__aenter__()
+            self.client_session = ClientSession(read_stream, write_stream)
+            await self.client_session.initialize()
+            self._context_manager = context_manager  # Keep reference for cleanup
             self.logger.info("MCP client session started successfully")
         except Exception as e:
             self.logger.error(f"Failed to start MCP client session: {e}")
@@ -48,12 +55,14 @@ class MCPVehicleAgent:
     
     async def close_session(self):
         """Close MCP client session"""
-        if self.client_session:
+        if hasattr(self, '_context_manager') and self._context_manager:
             try:
-                await self.client_session.__aexit__(None, None, None)
+                await self._context_manager.__aexit__(None, None, None)
                 self.logger.info("MCP client session closed")
             except Exception as e:
                 self.logger.error(f"Error closing MCP client session: {e}")
+        self.client_session = None
+        self._context_manager = None
     
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """
