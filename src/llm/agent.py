@@ -5,12 +5,12 @@ import logging
 
 from dto.agent_state import AgentState
 from llm.prompt_manager import PromptManager
-from llm.client.llm_client import LLMClient
+from llm.client.llm_client import OpenAILLMClient, BedrockLLMClient
 from dto.agent_response import VerifyImageResponse, VehicleTypeResponse, ReviewImageResponse
 
 
 class Agent:
-    def __init__(self, client: LLMClient, prompt_manager: PromptManager, logger: logging.Logger):
+    def __init__(self, client: OpenAILLMClient | BedrockLLMClient, prompt_manager: PromptManager, logger: logging.Logger):
         self.client = client
         self.prompt_manager = prompt_manager
         self.logger = logger
@@ -114,8 +114,14 @@ class Agent:
 if __name__ == "__main__":
     import asyncio
     from utils.utils import preprocess_image
-
-    client = LLMClient()
+    from core.settings import settings
+    
+    if settings.default_llm_client == "bedrock":
+        client = BedrockLLMClient()
+    elif settings.default_llm_client == "openai":
+        client = OpenAILLMClient()
+    else:
+        raise ValueError(f"Invalid default LLM client: {settings.default_llm_client}")
     prompt_manager = PromptManager()
     logger = logging.getLogger("Agent")
     agent = Agent(client, prompt_manager, logger)

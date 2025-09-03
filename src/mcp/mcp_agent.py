@@ -2,6 +2,7 @@
 MCP-based Vehicle Detection Agent
 Replaces the LangGraph implementation with MCP client
 """
+import os
 import asyncio
 import logging
 from typing import Dict, Any, Optional
@@ -18,9 +19,12 @@ class MCPVehicleAgent:
     def __init__(self, logger: Optional[logging.Logger] = None):
         self.logger = logger or logging.getLogger(__name__)
         self.client_session: Optional[ClientSession] = None
+
+        current_dir = os.path.dirname(__file__)
+        server_path = os.path.join(current_dir, "vehicle_detection_server.py")
         self.server_params = StdioServerParameters(
             command="python",
-            args=["/Users/juandiegogallegoquiceno/Desktop/PersonalProjects/vh-detection-agentic/src/mcp/vehicle_detection_server.py"]
+            args=[server_path]
         )
     
     async def __aenter__(self):

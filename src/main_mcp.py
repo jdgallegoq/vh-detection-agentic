@@ -15,8 +15,9 @@ sys.path.insert(0, str(src_path))
 from utils.utils import preprocess_image
 from mcp.mcp_agent import MCPVehicleAgent
 from llm.agent import Agent
-from llm.client.llm_client import LLMClient
+from llm.client.llm_client import OpenAILLMClient, BedrockLLMClient
 from llm.prompt_manager import PromptManager
+from core.settings import settings
 
 
 async def test_mcp_agent(image_path: str):
@@ -49,10 +50,10 @@ async def test_mcp_agent(image_path: str):
         traceback.print_exc()
 
 
-def test_original_agent(image_path: str):
+def test_original_agent(image_path: str, client_type: str = "openai"):
     """Test the original LangGraph agent for comparison"""
     print("\n" + "=" * 60)
-    print("TESTING ORIGINAL LANGGRAPH AGENT")
+    print(f"TESTING ORIGINAL LANGGRAPH AGENT ({client_type.upper()})")
     print("=" * 60)
     
     try:
@@ -60,13 +61,17 @@ def test_original_agent(image_path: str):
         print(f"Processing image: {image_path}")
         b64_image = preprocess_image(image_path)
         
-        # Test original agent
-        client = LLMClient()
+        # Test original agent with specified client
+        if client_type.lower() == "bedrock":
+            client = BedrockLLMClient()
+        else:
+            client = OpenAILLMClient()
+            
         prompt_manager = PromptManager()
-        logger = logging.getLogger("OriginalAgent")
+        logger = logging.getLogger(f"OriginalAgent_{client_type}")
         agent = Agent(client, prompt_manager, logger)
         
-        print("\nExecuting original LangGraph workflow...")
+        print(f"\nExecuting original LangGraph workflow with {client_type}...")
         result = asyncio.run(agent.aexecute(b64_image))
         print("Result:", result)
         
@@ -76,26 +81,30 @@ def test_original_agent(image_path: str):
         traceback.print_exc()
 
 
-async def compare_agents(image_path: str):
-    """Compare both agent implementations"""
+async def compare_agents(image_path: str, client_type: str = "openai"):
+    """Compare both agent implementations with specified client"""
     print("\n" + "=" * 60)
-    print("COMPARING BOTH IMPLEMENTATIONS")
+    print(f"COMPARING BOTH IMPLEMENTATIONS ({client_type.upper()})")
     print("=" * 60)
     
     try:
         b64_image = preprocess_image(image_path)
         
-        # Test original agent
-        print("\nOriginal LangGraph Agent:")
-        client = LLMClient()
+        # Test original agent with specified client
+        print(f"\nOriginal LangGraph Agent ({client_type}):")
+        if client_type.lower() == "bedrock":
+            client = BedrockLLMClient()
+        else:
+            client = OpenAILLMClient()
+            
         prompt_manager = PromptManager()
-        logger = logging.getLogger("OriginalAgent")
+        logger = logging.getLogger(f"OriginalAgent_{client_type}")
         original_agent = Agent(client, prompt_manager, logger)
         original_result = await original_agent.aexecute(b64_image)
         
         # Test MCP agent
-        print("\nMCP Agent:")
-        mcp_logger = logging.getLogger("MCPAgent")
+        print(f"\nMCP Agent ({client_type}):")
+        mcp_logger = logging.getLogger(f"MCPAgent_{client_type}")
         async with MCPVehicleAgent(mcp_logger) as mcp_agent:
             mcp_result = await mcp_agent.aexecute(b64_image, use_single_tool=False)
         
@@ -142,10 +151,10 @@ async def main():
     await test_mcp_agent(default_image)
     
     # Test original agent
-    test_original_agent(default_image)
+    test_original_agent(default_image, client_type=settings.default_llm_client)
     
     # Compare both
-    await compare_agents(default_image)
+    await compare_agents(default_image, client_type=settings.default_llm_client)
 
 
 if __name__ == "__main__":

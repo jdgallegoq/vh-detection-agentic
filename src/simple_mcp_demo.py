@@ -12,12 +12,13 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
 from mcp.server import FastMCP
-from llm.client.llm_client import LLMClient
+from llm.client.llm_client import OpenAILLMClient, BedrockLLMClient
 from llm.prompt_manager import PromptManager
 from dto.agent_response import VerifyImageResponse, VehicleTypeResponse, ReviewImageResponse
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.messages import HumanMessage
 from utils.utils import preprocess_image
+from core.settings import settings
 
 # Create MCP server
 vehicle_mcp = FastMCP("VehicleDetection")
@@ -26,18 +27,21 @@ vehicle_mcp = FastMCP("VehicleDetection")
 llm_client = None
 prompt_manager = None
 
-def get_components():
+def get_components(client_type: str = "openai"):
     """Get or initialize LLM components"""
     global llm_client, prompt_manager
     if llm_client is None:
-        llm_client = LLMClient()
+        if client_type.lower() == "bedrock":
+            llm_client = BedrockLLMClient()
+        else:
+            llm_client = OpenAILLMClient()
     if prompt_manager is None:
         prompt_manager = PromptManager()
     return llm_client, prompt_manager
 
-def invoke_llm_with_image(prompt_name: str, b64_image: str, **inputs):
+def invoke_llm_with_image(prompt_name: str, b64_image: str, client_type: str = "openai", **inputs):
     """Helper to invoke LLM with image"""
-    client, pm = get_components()
+    client, pm = get_components(client_type)
     
     # Render prompt
     all_inputs = {**inputs, "b64_image": b64_image}
@@ -56,12 +60,44 @@ def invoke_llm_with_image(prompt_name: str, b64_image: str, **inputs):
     return response.content
 
 @vehicle_mcp.tool()
-def analyze_vehicle_complete(b64_image: str) -> dict:
+def configure_llm_client(client_type: str = "openai") -> dict:
+    """
+    Configure which LLM client to use for subsequent operations.
+    
+    Args:
+        client_type: Type of LLM client to use ("openai" or "bedrock")
+        
+    Returns:
+        Configuration status
+    """
+    global llm_client
+    
+    try:
+        # Reset the client to force reinitialization
+        llm_client = None
+        
+        # Initialize with the new client type
+        get_components(client_type)
+        
+        return {
+            "success": True,
+            "client_type": client_type,
+            "message": f"LLM client configured to use {client_type}"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to configure LLM client: {str(e)}"
+        }
+
+@vehicle_mcp.tool()
+def analyze_vehicle_complete(b64_image: str, client_type: str = "openai") -> dict:
     """
     Complete vehicle analysis workflow in a single MCP tool.
     
     Args:
         b64_image: Base64 encoded image data
+        client_type: Type of LLM client to use ("openai" or "bedrock")
         
     Returns:
         Complete analysis including verification, type, and review
@@ -75,6 +111,7 @@ def analyze_vehicle_complete(b64_image: str) -> dict:
         verify_response = invoke_llm_with_image(
             "verify_image",
             b64_image=b64_image,
+            client_type=client_type,
             format_instructions=parser.get_format_instructions()
         )
         verify_result = parser.parse(verify_response)
@@ -95,6 +132,7 @@ def analyze_vehicle_complete(b64_image: str) -> dict:
         type_response = invoke_llm_with_image(
             "vehicle_type",
             b64_image=b64_image,
+            client_type=client_type,
             is_vehicle=verify_result.is_vehicle,
             format_instructions=type_parser.get_format_instructions()
         )
@@ -108,6 +146,7 @@ def analyze_vehicle_complete(b64_image: str) -> dict:
         review_response = invoke_llm_with_image(
             "review_image",
             b64_image=b64_image,
+            client_type=client_type,
             vehicle_type=type_result.vehicle_type,
             is_vehicle=verify_result.is_vehicle,
             format_instructions=review_parser.get_format_instructions()
@@ -133,12 +172,13 @@ def analyze_vehicle_complete(b64_image: str) -> dict:
         }
 
 @vehicle_mcp.tool()
-def verify_vehicle_only(b64_image: str) -> dict:
+def verify_vehicle_only(b64_image: str, client_type: str = "openai") -> dict:
     """
     Just verify if image contains a vehicle.
     
     Args:
         b64_image: Base64 encoded image data
+        client_type: Type of LLM client to use ("openai" or "bedrock")
         
     Returns:
         Verification result
@@ -148,6 +188,7 @@ def verify_vehicle_only(b64_image: str) -> dict:
         response = invoke_llm_with_image(
             "verify_image",
             b64_image=b64_image,
+            client_type=client_type,
             format_instructions=parser.get_format_instructions()
         )
         result = parser.parse(response)
@@ -190,6 +231,14 @@ async def test_mcp_tools():
         print("\n2. Testing complete analysis tool...")
         analysis_result = analyze_vehicle_complete(b64_image)
         print(f"Analysis result: {analysis_result}")
+        
+        # Test with Bedrock client if configured
+        print("\n3. Testing with Bedrock client (if configured)...")
+        try:
+            bedrock_result = analyze_vehicle_complete(b64_image, client_type="bedrock")
+            print(f"Bedrock analysis result: {bedrock_result}")
+        except Exception as e:
+            print(f"Bedrock test failed (expected if not configured): {e}")
         
         return True
         
